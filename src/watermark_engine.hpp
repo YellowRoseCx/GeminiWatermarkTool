@@ -137,7 +137,8 @@ bool process_image(
     const std::filesystem::path& output_path,
     bool remove,
     WatermarkEngine& engine,
-    std::optional<WatermarkSize> force_size = std::nullopt
+    std::optional<WatermarkSize> force_size = std::nullopt,
+    int jpeg_quality = 100
 );
 
 } // namespace gwt
