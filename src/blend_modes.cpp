@@ -1,5 +1,6 @@
 #include "blend_modes.hpp"
 #include <opencv2/imgproc.hpp>
+#include <algorithm> // for std::clamp
 
 namespace gwt {
 
@@ -73,7 +74,9 @@ void remove_watermark_alpha_blend(
     //   - alpha = 0: no watermark effect, pixel unchanged
     //   - alpha → 1: unstable, clamp result
 
-    const float alpha_threshold = 0.002f;  // Ignore very small alpha (noise)
+    // Since we applied a noise gate in initialization, we can use a very low threshold here
+    // or rely on exact zero.
+    const float alpha_threshold = 0.0f; 
     const float max_alpha = 0.99f;         // Avoid division by near-zero
 
     for (int row = 0; row < image_f.rows; ++row) {
@@ -84,7 +87,7 @@ void remove_watermark_alpha_blend(
             float alpha = alpha_ptr[col];
 
             // Skip pixels with negligible watermark effect
-            if (alpha < alpha_threshold) {
+            if (alpha <= alpha_threshold) {
                 continue;
             }
 
@@ -144,7 +147,7 @@ void add_watermark_alpha_blend(
     // Apply alpha blending (same as Gemini)
     // Formula: result = alpha * logo + (1 - alpha) * original
 
-    const float alpha_threshold = 0.002f;
+    const float alpha_threshold = 0.0f;
 
     for (int row = 0; row < image_f.rows; ++row) {
         const float* alpha_ptr = alpha_region.ptr<float>(row);
@@ -153,7 +156,7 @@ void add_watermark_alpha_blend(
         for (int col = 0; col < image_f.cols; ++col) {
             float alpha = alpha_ptr[col];
 
-            if (alpha < alpha_threshold) {
+            if (alpha <= alpha_threshold) {
                 continue;
             }
 

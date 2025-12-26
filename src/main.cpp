@@ -198,6 +198,11 @@ int main(int argc, char** argv) {
     app.add_flag("-v,--verbose", verbose, "Enable verbose output");
     app.add_flag("-q,--quiet", quiet, "Suppress all output except errors");
 
+    // Quality option (default 100)
+    int jpeg_quality = 100;
+    app.add_option("--quality", jpeg_quality, "JPEG Output Quality (0-100)")
+        ->check(CLI::Range(0, 100));
+
     // Parse arguments
     CLI11_PARSE(app, argc, argv);
 
@@ -266,7 +271,7 @@ int main(int argc, char** argv) {
                 fs::path out_file = output / entry.path().filename();
 
                 // Pass force_size to process_image
-                if (gwt::process_image(entry.path(), out_file, remove_mode, engine, force_size)) {
+                if (gwt::process_image(entry.path(), out_file, remove_mode, engine, force_size, jpeg_quality)) {
                     success_count++;
                 } else {
                     fail_count++;
@@ -281,7 +286,7 @@ int main(int argc, char** argv) {
 
         } else {
             // Single file processing - pass force_size
-            if (gwt::process_image(input, output, remove_mode, engine, force_size)) {
+            if (gwt::process_image(input, output, remove_mode, engine, force_size, jpeg_quality)) {
                 success_count = 1;
                 fmt::print(fmt::fg(fmt::color::green), "[OK] Success: {}\n", output.string());
             } else {

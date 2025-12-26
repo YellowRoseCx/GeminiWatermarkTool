@@ -73,6 +73,15 @@ void WatermarkEngine::init_alpha_maps(const cv::Mat& bg_small, const cv::Mat& bg
     alpha_map_small_ = calculate_alpha_map(small_resized);
     alpha_map_large_ = calculate_alpha_map(large_resized);
 
+    // Apply Noise Gate
+    // Force very small alpha values to 0.0 to prevent modifying pixels 
+    // that are outside the actual visual logo.
+    // Analysis showed 5/255 (approx 0.02) is a safe threshold to remove background noise
+    // while keeping the logo intact.
+    const float noise_threshold = 5.0f / 255.0f;
+    cv::threshold(alpha_map_small_, alpha_map_small_, noise_threshold, 0, cv::THRESH_TOZERO);
+    cv::threshold(alpha_map_large_, alpha_map_large_, noise_threshold, 0, cv::THRESH_TOZERO);
+
     spdlog::debug("Alpha map small: {}x{}, large: {}x{}",
                   alpha_map_small_.cols, alpha_map_small_.rows,
                   alpha_map_large_.cols, alpha_map_large_.rows);
@@ -214,7 +223,8 @@ bool process_image(
     const std::filesystem::path& output_path,
     bool remove,
     WatermarkEngine& engine,
-    std::optional<WatermarkSize> force_size) {
+    std::optional<WatermarkSize> force_size,
+    int jpeg_quality) {
     try {
         // Read image
         cv::Mat image = cv::imread(input_path.string(), cv::IMREAD_COLOR);
@@ -247,7 +257,7 @@ bool process_image(
 
         if (ext == ".jpg" || ext == ".jpeg") {
             // JPEG: 100 = minimal loss (still lossy, but best quality)
-            params = {cv::IMWRITE_JPEG_QUALITY, 100};
+            params = {cv::IMWRITE_JPEG_QUALITY, jpeg_quality};
         } else if (ext == ".png") {
             // PNG: lossless, compression level only affects file size/speed
             params = {cv::IMWRITE_PNG_COMPRESSION, 6};

@@ -13,7 +13,7 @@ LDFLAGS  :=
 
 # Application metadata
 APP_NAME    := GeminiWatermarkTool
-APP_VERSION := 0.1.1
+APP_VERSION := 0.1.2
 
 # Define macros
 CXXFLAGS += -DAPP_VERSION=\"$(APP_VERSION)\" -DAPP_NAME=\"$(APP_NAME)\"
@@ -39,7 +39,7 @@ OBJS := $(SRCS:%.cpp=$(OBJDIR)/%.o)
 INCLUDES := -Isrc -Iassets
 
 # Targets
-.PHONY: all clean install uninstall
+.PHONY: all clean install uninstall test
 
 all: $(APP_NAME)
 
@@ -53,9 +53,22 @@ $(OBJDIR)/%.o: %.cpp
 	@echo "Compiling $<"
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
+# Test Target
+TEST_NAME := test_regression
+TEST_SRCS := tests/test_regression.cpp src/watermark_engine.cpp src/blend_modes.cpp
+TEST_OBJS := $(TEST_SRCS:%.cpp=$(OBJDIR)/%.o)
+
+$(TEST_NAME): $(TEST_OBJS)
+	@echo "Linking Test $@"
+	$(CXX) $(TEST_OBJS) -o $@ $(LDFLAGS)
+
+test: $(TEST_NAME)
+	@echo "Running Tests..."
+	./$(TEST_NAME)
+
 clean:
 	@echo "Cleaning up..."
-	rm -rf $(OBJDIR) $(APP_NAME)
+	rm -rf $(OBJDIR) $(APP_NAME) $(TEST_NAME)
 
 install: $(APP_NAME)
 	@echo "Installing to /usr/local/bin/$(APP_NAME)"
