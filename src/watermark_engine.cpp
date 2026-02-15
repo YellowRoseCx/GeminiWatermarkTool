@@ -68,19 +68,61 @@ void WatermarkEngine::init_alpha_maps(const cv::Mat& bg_small, const cv::Mat& bg
         cv::resize(large_resized, large_resized, cv::Size(96, 96), 0, 0, cv::INTER_AREA);
     }
 
-    // Calculate alpha maps from background
-    // alpha = bg_value / 255
-    alpha_map_small_ = calculate_alpha_map(small_resized);
-    alpha_map_large_ = calculate_alpha_map(large_resized);
+   // alpha = bg_value / 255
+   alpha_map_small_ = calculate_alpha_map(small_resized);
+   alpha_map_large_ = calculate_alpha_map(large_resized);
 
-    // Apply Noise Gate
-    // Force very small alpha values to 0.0 to prevent modifying pixels 
-    // that are outside the actual visual logo.
-    // Analysis showed 5/255 (approx 0.02) is a safe threshold to remove background noise
-    // while keeping the logo intact.
-    const float noise_threshold = 5.0f / 255.0f;
-    cv::threshold(alpha_map_small_, alpha_map_small_, noise_threshold, 0, cv::THRESH_TOZERO);
-    cv::threshold(alpha_map_large_, alpha_map_large_, noise_threshold, 0, cv::THRESH_TOZERO);
+   // Apply Hysteresis Thresholding (Connectivity Filter)
+   // Instead of a simple hard threshold (which cuts off faint edges), we use 
+   // Geodesic Reconstruction to keep faint pixels ONLY if they are connected to the core logo.
+   
+   auto apply_hysteresis = [](cv::Mat& alpha_map) {
+       // 1. Core Mask: High certainty pixels (Noise Gate)
+       // 5/255 ensures we don't pick up random sensor noise spots.
+       cv::Mat mask_core;
+       cv::threshold(alpha_map, mask_core, 5.0/255.0, 1.0, cv::THRESH_BINARY);
+       mask_core.convertTo(mask_core, CV_8U);
+
+       // 2. All Potential Mask: Low threshold
+       // 1/255 allows very faint edges, but includes noise.
+       cv::Mat mask_all;
+       cv::threshold(alpha_map, mask_all, 1.0/255.0, 1.0, cv::THRESH_BINARY);
+       mask_all.convertTo(mask_all, CV_8U);
+
+       // 3. Geodesic Reconstruction by Dilation
+       // Start with core, expand into 'all' recursively.
+       // Since the logo is small (48 or 96), a fixed number of iterations covers it.
+       // Worst case path length is ~100 pixels (diagonal of 96x96).
+       // 100 iterations of 3x3 dilation is enough.
+       
+       cv::Mat marker = mask_core.clone();
+       cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+       
+       for (int i = 0; i < 100; ++i) {
+           cv::Mat prev;
+           marker.copyTo(prev);
+           
+           // Dilate marker (expand 1 pixel)
+           cv::dilate(marker, marker, kernel);
+           
+           // Constrain to valid mask (intersection)
+           cv::bitwise_and(marker, mask_all, marker);
+           
+           // Check convergence
+           if (cv::countNonZero(marker != prev) == 0) {
+               break;
+           }
+       }
+       
+       // 4. Apply Final Mask to Alpha Map
+       // Set alpha to 0 where the hysteresis mask is 0.
+       cv::Mat final_mask_float;
+       marker.convertTo(final_mask_float, CV_32F);
+       cv::multiply(alpha_map, final_mask_float, alpha_map);
+   };
+
+   apply_hysteresis(alpha_map_small_);
+   apply_hysteresis(alpha_map_large_);
 
     spdlog::debug("Alpha map small: {}x{}, large: {}x{}",
                   alpha_map_small_.cols, alpha_map_small_.rows,
